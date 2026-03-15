@@ -1,15 +1,33 @@
 {
-  "name": "hono",
-  "type": "module",
-  "scripts": {
-    "dev": "bun run --watch src/index.ts"
-  },
-  "dependencies": {
-    "hono": "^4.12.8"
-  },
-  "devDependencies": {
-    "@types/node": "^20.11.17",
-    "tsx": "^4.7.1",
-    "typescript": "^5.8.3"
-  }
+	"name": "hono",
+	"type": "module",
+	"scripts": {
+		"dev": "bun run --watch src/index.ts",
+		"lint": "bunx --bun @biomejs/biome check",
+		"lint:fix": "bunx --bun @biomejs/biome check --write --unsafe",
+		"postinstall": "prisma generate"
+	},
+	"dependencies": {
+		"@hono/zod-validator": "^0.7.6",
+		"@prisma/adapter-pg": "^7.5.0",
+		"@prisma/client": "^7.5.0",
+		"@types/bcrypt": "^6.0.0",
+		"@types/jsonwebtoken": "^9.0.10",
+		"bcryptjs": "^3.0.3",
+		"dotenv": "^17.3.1",
+		"hono": "^4.12.8",
+		"jsonwebtoken": "^9.0.3",
+		"nanoid": "^5.1.6",
+		"pg": "^8.20.0",
+		"resend": "^6.9.3",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.7",
+		"@types/node": "^20.11.17",
+		"@types/pg": "^8.18.0",
+		"prisma": "^7.5.0",
+		"tsx": "^4.21.0",
+		"typescript": "^5.8.3"
+	}
 }

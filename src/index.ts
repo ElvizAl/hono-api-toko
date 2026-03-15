@@ -1,14 +1,34 @@
-import { Hono } from 'hono'
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
+import { logger } from "hono/logger";
+import { authRouter } from "./modules/auth/auth.route";
 
-const app = new Hono()
+const app = new Hono().basePath("api").route("/auth", authRouter);
 
-const welcomeStrings = [
-  'Hello Hono!',
-  'To learn more about Hono on Vercel, visit https://vercel.com/docs/frameworks/backend/hono'
-]
+app.use("*", logger());
 
-app.get('/', (c) => {
-  return c.text(welcomeStrings.join('\n\n'))
-})
+app.use(
+	"*",
+	cors({
+		origin: ["http://localhost:3000"],
+		allowMethods: ["GET", "POST", "PUT", "DELETE"],
+		allowHeaders: ["Content-Type", "Authorization"],
+		credentials: true,
+	}),
+);
 
-export default app
+app.notFound((c) => {
+	return c.json({ message: "Tidak Ditemukan" }, 404);
+});
+
+app.onError((err, c) => {
+	if (err instanceof HTTPException) {
+		return c.json({ message: err.message }, err.status);
+	}
+
+	console.error("Internal Server Error:", err);
+	return c.json({ message: "Internal Server Error" }, 500);
+});
+
+export default app;
