@@ -1,7 +1,10 @@
 import { zValidator } from "@hono/zod-validator";
+import { generateCodeVerifier, generateState } from "arctic";
 import { Hono } from "hono";
+import { setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { requireAuth } from "../../middleware/auth";
+import { google } from "../../utils/arctic";
 import {
 	forgotPasswordSchema,
 	loginSchema,
@@ -12,6 +15,7 @@ import {
 } from "./auth.schema";
 import {
 	forgotPasswordService,
+	getMeService,
 	loginService,
 	logoutService,
 	refreshTokenService,
@@ -83,6 +87,18 @@ export const authRouter = new Hono()
 		return c.json(result, 200);
 	})
 
+	.get("/me", requireAuth, async (c) => {
+		const user = c.get("user");
+		if (!user) {
+			throw new HTTPException(401, {
+				message: "Sesi tidak valid atau belum login",
+			});
+		}
+
+		const result = await getMeService(user.sub);
+		return c.json(result, 200);
+	})
+
 	.post("/refresh-token", requireAuth, async (c) => {
 		const authHeader = c.req.header("Authorization");
 		const refreshToken = authHeader?.split(" ")[1];
@@ -95,4 +111,22 @@ export const authRouter = new Hono()
 
 		const result = await refreshTokenService(refreshToken);
 		return c.json(result, 200);
+	})
+
+	.get("/google", async (c) => {
+		const state = generateState();
+		const code = generateCodeVerifier();
+		const scopes = ["profile", "email"];
+
+		setCookie(c, "code", code, {
+			path: "/",
+			secure: process.env.NODE_ENV === "production",
+			httpOnly: true,
+			maxAge: 60 * 10,
+			sameSite: "Lax",
+		});
+
+		const url = await google.createAuthorizationURL(state, code, scopes);
+
+		return c.redirect(url.href);
 	});

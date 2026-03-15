@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -11,7 +6,6 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-
 
 enum Role {
   USER
@@ -23,27 +17,119 @@ enum VerificationPurpose {
   RESET_PASSWORD
 }
 
+enum PaymentType {
+  TRANSFER
+  EWALLET
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
 model User {
-  id String @id @default(cuid())
-  name String
-  email String @unique
-  password String?
-  avatarUrl String?
-  refreshToken String?
-  isVerified Boolean @default(false)
-  onBanned Boolean @default(false)
-  role Role @default(USER)
-   verificationCode VerificationCode?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String            @id @default(cuid())
+  name             String
+  email            String            @unique
+  password         String?
+  avatarUrl        String?
+  refreshToken     String?
+  isVerified       Boolean           @default(false)
+  onBanned         Boolean           @default(false)
+  role             Role              @default(USER)
+  verificationCode VerificationCode?
+  profile          Profile?
+  orders           Order[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 model VerificationCode {
-  id String @id @default(cuid())
-  code String
-  purpose VerificationPurpose
+  id        String              @id @default(cuid())
+  code      String
+  purpose   VerificationPurpose
   expiresAt DateTime
+  userId    String              @unique
+  user      User                @relation(fields: [userId], references: [id])
+  createdAt DateTime            @default(now())
+}
+
+model Profile {
+  id       String @id @default(cuid())
+  fullName String
+  phone    String
+  address  String
+  cityId   String
+  zipcode  String
+
   userId String @unique
-  user User @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  price       Decimal @db.Decimal(10, 2)
+  weight      Int     // Berat produk dalam gram
+  stock       Int
+  imageUrl    String?
+  description String?
+
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  totalPrice Decimal @db.Decimal(12, 2) // Harga dari barang saja
+  shippingCost Decimal @db.Decimal(10, 2) // Ongkos kirim
+  grandTotal Decimal @db.Decimal(12, 2) // Total harga + ongkos kirim
+
+  courier     String // Jasa pengiriman (jne, pos, tiki dll)
+  
+  paymentType PaymentType
+  proofImage  String? // bukti transfer / ewallet
+
+  status OrderStatus @default(PENDING)
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId   String
+  productId String
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  quantity Int
+  price    Decimal @db.Decimal(10, 2)
+  subtotal Decimal @db.Decimal(12, 2)
 }

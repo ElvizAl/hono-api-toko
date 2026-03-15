@@ -313,3 +313,24 @@ export async function logoutService(refreshToken?: string) {
 
 	return { message: "Logout berhasil" };
 }
+
+export async function getMeService(userId: string) {
+	const user = await prisma.user.findUnique({
+		where: { id: userId },
+		select: {
+			id: true,
+			name: true,
+			email: true,
+			role: true,
+			isVerified: true,
+			createdAt: true,
+			updatedAt: true,
+		},
+	});
+
+	if (!user) {
+		throw new HTTPException(404, { message: "User tidak ditemukan" });
+	}
+
+	return { user };
+}
