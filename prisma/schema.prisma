@@ -41,6 +41,7 @@ model User {
   verificationCode VerificationCode?
   profile          Profile?
   orders           Order[]
+  reviews          ProductReview[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 }
@@ -93,6 +94,7 @@ model Product {
   description String?
 
   orderItems OrderItem[]
+  reviews    ProductReview[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -132,4 +134,19 @@ model OrderItem {
   quantity Int
   price    Decimal @db.Decimal(10, 2)
   subtotal Decimal @db.Decimal(12, 2)
+}
+
+model ProductReview {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 stars
+  comment   String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

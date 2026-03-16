@@ -1,0 +1,2039 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Hono API Toko",
+		"version": "1.0.0",
+		"description": "REST API untuk aplikasi toko online. Mencakup autentikasi, produk, kategori, order, profil, user, ulasan, ongkir, dan dashboard admin."
+	},
+	"servers": [
+		{
+			"url": "http://localhost:3000/api",
+			"description": "Local Development"
+		},
+		{
+			"url": "https://hono-api-toko.vercel.app/api",
+			"description": "Production"
+		}
+	],
+	"components": {
+		"securitySchemes": {
+			"BearerAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT"
+			}
+		},
+		"schemas": {
+			"ErrorResponse": {
+				"type": "object",
+				"properties": {
+					"message": { "type": "string" }
+				}
+			},
+			"SuccessMessage": {
+				"type": "object",
+				"properties": {
+					"message": { "type": "string" }
+				}
+			},
+			"RegisterRequest": {
+				"type": "object",
+				"required": ["name", "email", "password"],
+				"properties": {
+					"name": { "type": "string", "example": "Budi Santoso" },
+					"email": {
+						"type": "string",
+						"format": "email",
+						"example": "budi@example.com"
+					},
+					"password": {
+						"type": "string",
+						"minLength": 8,
+						"example": "password123"
+					}
+				}
+			},
+			"LoginRequest": {
+				"type": "object",
+				"required": ["email", "password"],
+				"properties": {
+					"email": {
+						"type": "string",
+						"format": "email",
+						"example": "budi@example.com"
+					},
+					"password": { "type": "string", "example": "password123" }
+				}
+			},
+			"LoginResponse": {
+				"type": "object",
+				"properties": {
+					"accessToken": { "type": "string" },
+					"refreshToken": { "type": "string" },
+					"user": {
+						"type": "object",
+						"properties": {
+							"id": { "type": "string" },
+							"name": { "type": "string" },
+							"email": { "type": "string" },
+							"role": { "type": "string", "enum": ["USER", "ADMIN"] },
+							"isVerified": { "type": "boolean" }
+						}
+					}
+				}
+			},
+			"VerifyEmailRequest": {
+				"type": "object",
+				"required": ["email", "otp"],
+				"properties": {
+					"email": { "type": "string", "format": "email" },
+					"otp": { "type": "string", "example": "123456" }
+				}
+			},
+			"ResendOtpRequest": {
+				"type": "object",
+				"required": ["email"],
+				"properties": {
+					"email": { "type": "string", "format": "email" }
+				}
+			},
+			"ForgotPasswordRequest": {
+				"type": "object",
+				"required": ["email"],
+				"properties": {
+					"email": { "type": "string", "format": "email" }
+				}
+			},
+			"ResetPasswordRequest": {
+				"type": "object",
+				"required": ["email", "otp", "newPassword"],
+				"properties": {
+					"email": { "type": "string", "format": "email" },
+					"otp": { "type": "string", "example": "123456" },
+					"newPassword": {
+						"type": "string",
+						"minLength": 8,
+						"example": "newpassword123"
+					}
+				}
+			},
+			"Category": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string", "example": "Elektronik" },
+					"slug": { "type": "string", "example": "elektronik" },
+					"createdAt": { "type": "string", "format": "date-time" },
+					"updatedAt": { "type": "string", "format": "date-time" }
+				}
+			},
+			"CategoryRequest": {
+				"type": "object",
+				"required": ["name"],
+				"properties": {
+					"name": { "type": "string", "example": "Elektronik" }
+				}
+			},
+			"Product": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string" },
+					"slug": { "type": "string" },
+					"description": { "type": "string" },
+					"price": { "type": "number" },
+					"stock": { "type": "integer" },
+					"weight": { "type": "number" },
+					"imageUrl": { "type": "string" },
+					"categoryId": { "type": "string" },
+					"category": { "$ref": "#/components/schemas/Category" },
+					"createdAt": { "type": "string", "format": "date-time" },
+					"updatedAt": { "type": "string", "format": "date-time" }
+				}
+			},
+			"ProductListResponse": {
+				"type": "object",
+				"properties": {
+					"data": {
+						"type": "array",
+						"items": { "$ref": "#/components/schemas/Product" }
+					},
+					"meta": {
+						"type": "object",
+						"properties": {
+							"total": { "type": "integer" },
+							"page": { "type": "integer" },
+							"limit": { "type": "integer" },
+							"totalPages": { "type": "integer" }
+						}
+					}
+				}
+			},
+			"UpdateStockRequest": {
+				"type": "object",
+				"required": ["stock"],
+				"properties": {
+					"stock": { "type": "integer", "minimum": 0 }
+				}
+			},
+			"Order": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"userId": { "type": "string" },
+					"status": {
+						"type": "string",
+						"enum": [
+							"PENDING",
+							"PROCESSING",
+							"SHIPPED",
+							"DELIVERED",
+							"CANCELLED"
+						]
+					},
+					"totalAmount": { "type": "number" },
+					"shippingAddress": { "type": "string" },
+					"courierService": { "type": "string" },
+					"trackingNumber": { "type": "string" },
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"productId": { "type": "string" },
+								"quantity": { "type": "integer" },
+								"price": { "type": "number" }
+							}
+						}
+					},
+					"createdAt": { "type": "string", "format": "date-time" },
+					"updatedAt": { "type": "string", "format": "date-time" }
+				}
+			},
+			"UpdateOrderStatusRequest": {
+				"type": "object",
+				"required": ["status"],
+				"properties": {
+					"status": {
+						"type": "string",
+						"enum": [
+							"PENDING",
+							"PROCESSING",
+							"SHIPPED",
+							"DELIVERED",
+							"CANCELLED"
+						]
+					}
+				}
+			},
+			"Profile": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"userId": { "type": "string" },
+					"phone": { "type": "string" },
+					"address": { "type": "string" },
+					"city": { "type": "string" },
+					"province": { "type": "string" },
+					"postalCode": { "type": "string" },
+					"avatarUrl": { "type": "string" }
+				}
+			},
+			"ProfileRequest": {
+				"type": "object",
+				"properties": {
+					"phone": { "type": "string", "example": "08123456789" },
+					"address": { "type": "string", "example": "Jl. Sudirman No. 1" },
+					"city": { "type": "string", "example": "Jakarta" },
+					"province": { "type": "string", "example": "DKI Jakarta" },
+					"postalCode": { "type": "string", "example": "12190" }
+				}
+			},
+			"User": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string" },
+					"email": { "type": "string" },
+					"role": { "type": "string", "enum": ["USER", "ADMIN"] },
+					"isVerified": { "type": "boolean" },
+					"isBanned": { "type": "boolean" },
+					"createdAt": { "type": "string", "format": "date-time" }
+				}
+			},
+			"UpdateUserRequest": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string" },
+					"email": { "type": "string", "format": "email" },
+					"role": { "type": "string", "enum": ["USER", "ADMIN"] }
+				}
+			},
+			"BanUserRequest": {
+				"type": "object",
+				"required": ["isBanned"],
+				"properties": {
+					"isBanned": { "type": "boolean", "example": true }
+				}
+			},
+			"Review": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"userId": { "type": "string" },
+					"productId": { "type": "string" },
+					"rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+					"comment": { "type": "string" },
+					"createdAt": { "type": "string", "format": "date-time" }
+				}
+			},
+			"CreateReviewRequest": {
+				"type": "object",
+				"required": ["rating"],
+				"properties": {
+					"rating": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 5,
+						"example": 5
+					},
+					"comment": { "type": "string", "example": "Produk bagus sekali!" }
+				}
+			},
+			"UpdateReviewRequest": {
+				"type": "object",
+				"properties": {
+					"rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+					"comment": { "type": "string" }
+				}
+			},
+			"ShippingCostRequest": {
+				"type": "object",
+				"required": ["origin", "destination", "weight", "courier"],
+				"properties": {
+					"origin": { "type": "string", "example": "501" },
+					"destination": { "type": "string", "example": "114" },
+					"weight": { "type": "integer", "example": 1000 },
+					"courier": { "type": "string", "example": "jne" }
+				}
+			}
+		}
+	},
+	"security": [],
+	"tags": [
+		{ "name": "Auth", "description": "Autentikasi dan manajemen sesi" },
+		{ "name": "Categories", "description": "Manajemen kategori produk" },
+		{ "name": "Products", "description": "Manajemen produk toko" },
+		{ "name": "Orders", "description": "Manajemen pesanan" },
+		{ "name": "Profile", "description": "Profil pengguna" },
+		{ "name": "Users", "description": "Manajemen user (Admin only)" },
+		{ "name": "Product Reviews", "description": "Ulasan produk" },
+		{ "name": "RajaOngkir", "description": "Cek ongkos kirim dan tracking" },
+		{
+			"name": "Admin Dashboard",
+			"description": "Statistik dan analitik dashboard admin"
+		}
+	],
+	"paths": {
+		"/auth/register": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Daftar akun baru",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/RegisterRequest" }
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Registrasi berhasil",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					},
+					"400": {
+						"description": "Validasi gagal",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ErrorResponse" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/login": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Login dan dapatkan token",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/LoginRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Login berhasil",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/LoginResponse" }
+							}
+						}
+					},
+					"401": {
+						"description": "Email atau password salah",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ErrorResponse" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/verify-email": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Verifikasi email dengan OTP",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/VerifyEmailRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Email berhasil diverifikasi",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					},
+					"400": {
+						"description": "OTP tidak valid atau kedaluwarsa",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ErrorResponse" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/resend-otp": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Kirim ulang OTP verifikasi email",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/ResendOtpRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OTP berhasil dikirim ulang",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/forgot-password": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Kirim OTP reset password ke email",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/ForgotPasswordRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OTP reset password dikirim",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/reset-password": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Reset password dengan OTP",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/ResetPasswordRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Password berhasil direset",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/logout": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Logout dan invalidate token",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Logout berhasil",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ErrorResponse" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/me": {
+			"get": {
+				"tags": ["Auth"],
+				"summary": "Dapatkan data user yang sedang login",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Data user",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/User" }
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ErrorResponse" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/refresh-token": {
+			"post": {
+				"tags": ["Auth"],
+				"summary": "Perbarui access token menggunakan refresh token",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Token baru",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": { "accessToken": { "type": "string" } }
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Refresh token tidak valid",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ErrorResponse" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/google": {
+			"get": {
+				"tags": ["Auth"],
+				"summary": "Redirect ke halaman login Google OAuth",
+				"responses": {
+					"302": { "description": "Redirect ke Google OAuth" }
+				}
+			}
+		},
+		"/categories": {
+			"get": {
+				"tags": ["Categories"],
+				"summary": "Dapatkan semua kategori",
+				"responses": {
+					"200": {
+						"description": "Daftar kategori",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": { "$ref": "#/components/schemas/Category" }
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": ["Categories"],
+				"summary": "Buat kategori baru (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/CategoryRequest" }
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Kategori berhasil dibuat",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Category" }
+							}
+						}
+					},
+					"401": { "description": "Unauthorized" },
+					"403": { "description": "Forbidden - Bukan admin" }
+				}
+			}
+		},
+		"/categories/{id}": {
+			"put": {
+				"tags": ["Categories"],
+				"summary": "Update kategori (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/CategoryRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Kategori berhasil diupdate",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Category" }
+							}
+						}
+					},
+					"404": { "description": "Kategori tidak ditemukan" }
+				}
+			},
+			"delete": {
+				"tags": ["Categories"],
+				"summary": "Hapus kategori (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Kategori berhasil dihapus",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/products": {
+			"get": {
+				"tags": ["Products"],
+				"summary": "Dapatkan semua produk (dengan pagination, filter, search)",
+				"parameters": [
+					{
+						"name": "page",
+						"in": "query",
+						"schema": { "type": "integer", "default": 1 }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 10 }
+					},
+					{ "name": "search", "in": "query", "schema": { "type": "string" } },
+					{
+						"name": "categoryId",
+						"in": "query",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "sortBy",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["name", "price", "createdAt"]
+						}
+					},
+					{
+						"name": "sortOrder",
+						"in": "query",
+						"schema": { "type": "string", "enum": ["asc", "desc"] }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar produk",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/ProductListResponse" }
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": ["Products"],
+				"summary": "Buat produk baru (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"required": ["name", "price", "stock", "categoryId"],
+								"properties": {
+									"name": { "type": "string", "example": "iPhone 15 Pro" },
+									"description": { "type": "string" },
+									"price": { "type": "number", "example": 15000000 },
+									"stock": { "type": "integer", "example": 50 },
+									"weight": { "type": "number", "example": 0.2 },
+									"categoryId": { "type": "string" },
+									"image": { "type": "string", "format": "binary" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Produk berhasil dibuat",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Product" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/products/low-stock": {
+			"get": {
+				"tags": ["Products"],
+				"summary": "Dapatkan produk dengan stok rendah (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "threshold",
+						"in": "query",
+						"schema": { "type": "integer", "default": 5 }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Produk stok rendah",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": { "$ref": "#/components/schemas/Product" }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/products/{id}": {
+			"get": {
+				"tags": ["Products"],
+				"summary": "Dapatkan detail produk berdasarkan ID",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Detail produk",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Product" }
+							}
+						}
+					},
+					"404": { "description": "Produk tidak ditemukan" }
+				}
+			},
+			"put": {
+				"tags": ["Products"],
+				"summary": "Update produk (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"name": { "type": "string" },
+									"description": { "type": "string" },
+									"price": { "type": "number" },
+									"stock": { "type": "integer" },
+									"weight": { "type": "number" },
+									"categoryId": { "type": "string" },
+									"image": { "type": "string", "format": "binary" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Produk berhasil diupdate",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Product" }
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": ["Products"],
+				"summary": "Hapus produk (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Produk berhasil dihapus",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/products/{id}/stock": {
+			"patch": {
+				"tags": ["Products"],
+				"summary": "Update stok produk (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/UpdateStockRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Stok berhasil diupdate",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/orders": {
+			"get": {
+				"tags": ["Orders"],
+				"summary": "Dapatkan semua order milik user yang login",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Daftar order",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": { "$ref": "#/components/schemas/Order" }
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": ["Orders"],
+				"summary": "Buat order baru",
+				"security": [{ "BearerAuth": [] }],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"required": ["items", "shippingAddress", "courierService"],
+								"properties": {
+									"items": {
+										"type": "string",
+										"description": "JSON string array of {productId, quantity}",
+										"example": "[{\"productId\":\"abc\",\"quantity\":2}]"
+									},
+									"shippingAddress": { "type": "string" },
+									"courierService": { "type": "string", "example": "jne-reg" },
+									"notes": { "type": "string" }
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Order berhasil dibuat",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Order" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/orders/{id}": {
+			"get": {
+				"tags": ["Orders"],
+				"summary": "Dapatkan detail order berdasarkan ID",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Detail order",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Order" }
+							}
+						}
+					},
+					"404": { "description": "Order tidak ditemukan" }
+				}
+			}
+		},
+		"/orders/admin": {
+			"get": {
+				"tags": ["Orders"],
+				"summary": "Dapatkan semua order (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Daftar semua order",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": { "$ref": "#/components/schemas/Order" }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/orders/admin/{id}": {
+			"get": {
+				"tags": ["Orders"],
+				"summary": "Dapatkan detail order berdasarkan ID (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Detail order",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Order" }
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": ["Orders"],
+				"summary": "Hapus order (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Order berhasil dihapus",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/orders/admin/{id}/status": {
+			"put": {
+				"tags": ["Orders"],
+				"summary": "Update status order (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateOrderStatusRequest"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Status order berhasil diupdate",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Order" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/profile": {
+			"get": {
+				"tags": ["Profile"],
+				"summary": "Dapatkan profil user yang sedang login",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Profil user",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Profile" }
+							}
+						}
+					}
+				}
+			},
+			"put": {
+				"tags": ["Profile"],
+				"summary": "Buat atau update profil user yang sedang login",
+				"security": [{ "BearerAuth": [] }],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/ProfileRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Profil berhasil disimpan",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Profile" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/profile/admin": {
+			"get": {
+				"tags": ["Profile"],
+				"summary": "Dapatkan semua profil (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Daftar semua profil",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": { "$ref": "#/components/schemas/Profile" }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/profile/admin/{id}": {
+			"get": {
+				"tags": ["Profile"],
+				"summary": "Dapatkan profil berdasarkan ID (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Profil user",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Profile" }
+							}
+						}
+					}
+				}
+			},
+			"put": {
+				"tags": ["Profile"],
+				"summary": "Update profil user lain (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/ProfileRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Profil berhasil diupdate",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Profile" }
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": ["Profile"],
+				"summary": "Hapus profil user (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Profil berhasil dihapus",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/users": {
+			"get": {
+				"tags": ["Users"],
+				"summary": "Dapatkan semua user dengan pagination dan search (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "page",
+						"in": "query",
+						"schema": { "type": "integer", "default": 1 }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 10 }
+					},
+					{ "name": "search", "in": "query", "schema": { "type": "string" } }
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar user",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/User" }
+										},
+										"meta": { "type": "object" }
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/users/{id}": {
+			"get": {
+				"tags": ["Users"],
+				"summary": "Dapatkan detail user berdasarkan ID (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Detail user",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/User" }
+							}
+						}
+					}
+				}
+			},
+			"put": {
+				"tags": ["Users"],
+				"summary": "Update data user (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/UpdateUserRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "User berhasil diupdate",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/User" }
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": ["Users"],
+				"summary": "Hapus user (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "User berhasil dihapus",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/users/{id}/ban": {
+			"patch": {
+				"tags": ["Users"],
+				"summary": "Ban atau unban user (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/BanUserRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Status ban berhasil diubah",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/product-reviews": {
+			"get": {
+				"tags": ["Product Reviews"],
+				"summary": "Dapatkan semua ulasan (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "page",
+						"in": "query",
+						"schema": { "type": "integer", "default": 1 }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 10 }
+					},
+					{ "name": "productId", "in": "query", "schema": { "type": "string" } }
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar semua ulasan",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": { "$ref": "#/components/schemas/Review" }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/product-reviews/{id}": {
+			"get": {
+				"tags": ["Product Reviews"],
+				"summary": "Dapatkan detail ulasan berdasarkan ID",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Detail ulasan",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Review" }
+							}
+						}
+					}
+				}
+			},
+			"put": {
+				"tags": ["Product Reviews"],
+				"summary": "Update ulasan (pemilik atau admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/UpdateReviewRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Ulasan berhasil diupdate",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Review" }
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": ["Product Reviews"],
+				"summary": "Hapus ulasan (pemilik atau admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Ulasan berhasil dihapus",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/SuccessMessage" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/product-reviews/product/{productId}": {
+			"get": {
+				"tags": ["Product Reviews"],
+				"summary": "Dapatkan ulasan berdasarkan produk",
+				"parameters": [
+					{
+						"name": "productId",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"schema": { "type": "integer", "default": 1 }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 10 }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Ulasan produk",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": { "$ref": "#/components/schemas/Review" }
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": ["Product Reviews"],
+				"summary": "Buat ulasan untuk produk (Auth required)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "productId",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/CreateReviewRequest" }
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Ulasan berhasil dibuat",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Review" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/province": {
+			"get": {
+				"tags": ["RajaOngkir"],
+				"summary": "Dapatkan daftar semua provinsi",
+				"responses": {
+					"200": {
+						"description": "Daftar provinsi",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/city/{provinceId}": {
+			"get": {
+				"tags": ["RajaOngkir"],
+				"summary": "Dapatkan daftar kota berdasarkan provinsi",
+				"parameters": [
+					{
+						"name": "provinceId",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" },
+						"example": "9"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar kota",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/district/{cityId}": {
+			"get": {
+				"tags": ["RajaOngkir"],
+				"summary": "Dapatkan daftar kecamatan berdasarkan kota",
+				"parameters": [
+					{
+						"name": "cityId",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar kecamatan",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/sub-district/{districtId}": {
+			"get": {
+				"tags": ["RajaOngkir"],
+				"summary": "Dapatkan daftar kelurahan berdasarkan kecamatan",
+				"parameters": [
+					{
+						"name": "districtId",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar kelurahan",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/cost": {
+			"post": {
+				"tags": ["RajaOngkir"],
+				"summary": "Hitung biaya pengiriman",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/ShippingCostRequest" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Hasil perhitungan ongkir",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/domestic-destination": {
+			"get": {
+				"tags": ["RajaOngkir"],
+				"summary": "Cari tujuan pengiriman domestik",
+				"parameters": [
+					{
+						"name": "search",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string" },
+						"example": "Jakarta"
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 10 }
+					},
+					{
+						"name": "offset",
+						"in": "query",
+						"schema": { "type": "integer", "default": 0 }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Hasil pencarian destinasi domestik",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/international-destination": {
+			"get": {
+				"tags": ["RajaOngkir"],
+				"summary": "Cari tujuan pengiriman internasional",
+				"parameters": [
+					{
+						"name": "search",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string" },
+						"example": "Singapore"
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 10 }
+					},
+					{
+						"name": "offset",
+						"in": "query",
+						"schema": { "type": "integer", "default": 0 }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Hasil pencarian destinasi internasional",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/rajaongkir/track": {
+			"post": {
+				"tags": ["RajaOngkir"],
+				"summary": "Lacak paket dengan nomor resi",
+				"parameters": [
+					{
+						"name": "awb",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string" },
+						"example": "1234567890"
+					},
+					{
+						"name": "courier",
+						"in": "query",
+						"required": true,
+						"schema": { "type": "string" },
+						"example": "jne"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Informasi tracking paket",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/overview": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Ringkasan data dashboard (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Data overview dashboard",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/stats/sales": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Analitik penjualan (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "startDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "endDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "period",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["today", "week", "month", "year", "all"]
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Data analitik penjualan",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/stats/revenue": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Analitik pendapatan (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "startDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "endDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "period",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["today", "week", "month", "year", "all"]
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Data analitik pendapatan",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/stats/orders": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Statistik pesanan (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "startDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "endDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "period",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["today", "week", "month", "year", "all"]
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Statistik pesanan",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/stats/customers": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Insight pelanggan (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "startDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "endDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "period",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["today", "week", "month", "year", "all"]
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Data insight pelanggan",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/products/top-selling": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Produk terlaris (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "by",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["quantity", "revenue"],
+							"default": "revenue"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": { "type": "integer", "default": 10, "maximum": 50 }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar produk terlaris",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/products/low-stock": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Produk stok rendah - Dashboard (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "threshold",
+						"in": "query",
+						"schema": { "type": "integer", "default": 5 }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Daftar produk stok rendah",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/charts/sales": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Data grafik tren penjualan (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"parameters": [
+					{
+						"name": "groupBy",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": ["day", "week", "month"],
+							"default": "day"
+						}
+					},
+					{
+						"name": "startDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					},
+					{
+						"name": "endDate",
+						"in": "query",
+						"schema": { "type": "string", "format": "date" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Data grafik penjualan",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		},
+		"/admin-dashboard/charts/categories": {
+			"get": {
+				"tags": ["Admin Dashboard"],
+				"summary": "Data grafik performa kategori (Admin)",
+				"security": [{ "BearerAuth": [] }],
+				"responses": {
+					"200": {
+						"description": "Data grafik kategori",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					}
+				}
+			}
+		}
+	}
+}
