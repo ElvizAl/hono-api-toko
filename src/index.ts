@@ -1,4 +1,5 @@
 import { apiReference } from "@scalar/hono-api-reference";
+import openApiSpec from "./openapi.json";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -42,14 +43,8 @@ const app = new Hono()
 	.route("/rajaongkir", rajaOngkirRouter)
 
 	// Serve the OpenAPI JSON spec
-	.get("/openapi.json", async (c) => {
-		const fs = await import("node:fs");
-		const path = await import("node:path");
-		const file = fs.readFileSync(
-			path.join(process.cwd(), "src", "openapi.json"),
-			"utf-8",
-		);
-		return c.json(JSON.parse(file));
+	.get("/openapi.json", (c) => {
+		return c.json(openApiSpec);
 	})
 
 	// Scalar API Docs UI
